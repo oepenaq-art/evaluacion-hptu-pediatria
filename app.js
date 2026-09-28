@@ -14,7 +14,6 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const functions = firebase.functions();
-const storage = firebase.storage();
 
 // Forzar persistencia local para navegadores móviles restrictivos
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e => console.error("Persistence error:", e));
@@ -28,8 +27,20 @@ let userRole = 'docente'; // 'docente' o 'coordinador'
 auth.onAuthStateChanged(async (user) => {
     if (user) {
         currentUser = user;
-        currentUser.nombre = user.email;
-        userRole = 'coordinador';
+        try {
+            const userDoc = await db.collection('users').doc(user.uid).get();
+            if (userDoc.exists) {
+                const data = userDoc.data();
+                userRole = data.rol || 'docente';
+                currentUser.nombre = data.nombre || user.email;
+            } else {
+                currentUser.nombre = user.email.split('@')[0];
+                userRole = 'docente';
+            }
+        } catch (e) {
+            currentUser.nombre = user.email;
+            userRole = 'docente';
+        }
 
         document.getElementById('user-bar').classList.remove('hidden');
         document.getElementById('user-info-text').innerText = `👤 ${currentUser.nombre} (${userRole.toUpperCase()})`;
@@ -44,7 +55,7 @@ auth.onAuthStateChanged(async (user) => {
             var el_coord_btn = document.getElementById('coord-btn'); if (el_coord_btn) el_coord_btn.classList.add('hidden');
         }
 
-        showStep('step-main-menu');
+        showStep('step-year');
     } else {
         currentUser = null;
         var el_user_bar = document.getElementById('user-bar'); if (el_user_bar) el_user_bar.classList.add('hidden');
@@ -167,44 +178,6 @@ const subjectsYear1 = [
     "Urgencias pediátricas III nivel de fundamentación"
 , "Infectología pediátrica"];
 
-
-const rubricStructureYear3 = [
-    {
-        category: "Conocimientos académicos",
-        items: [
-            { id: "rm_c_academico_y3", title: "Conocimientos y aprendizaje", desc: "Demuestra dominio experto de la literatura reciente, guías de manejo y aplica pensamiento crítico para resolver casos complejos.", weight: 0.25 }
-        ]
-    },
-    {
-        category: "Competencias clínicas",
-        items: [
-            { id: "rm_c_anamnesis_y3", title: "Anamnesis", desc: "Realiza anamnesis exhaustiva, identificando sutiles determinantes sociales y correlacionando hallazgos complejos con la fisiopatología.", weight: 0.10 },
-            { id: "rm_c_fisico_y3", title: "Examen físico", desc: "Dirige el examen físico a hallazgos avanzados, reconociendo signos clínicos atípicos y sutilezas semiológicas.", weight: 0.10 },
-            { id: "rm_c_analisis_y3", title: "Análisis y síntesis", desc: "Elabora diagnósticos diferenciales complejos, justificando cada uno con evidencia sólida y un raciocinio fisiopatológico impecable.", weight: 0.15 },
-            { id: "rm_c_plan_y3", title: "Plan de manejo", desc: "Diseña planes de manejo integrales y costo-efectivos, liderando al equipo multidisciplinario y anticipando complicaciones.", weight: 0.15 }
-        ]
-    },
-    {
-        category: "Habilidades de comunicación y Profesionalismo",
-        items: [
-            { id: "rm_c_comunicacion_y3", title: "Comunicación y trabajo en equipo", desc: "Se comunica de forma asertiva y empática en situaciones difíciles, transmitiendo información compleja con claridad y liderando el equipo.", weight: 0.10 },
-            { id: "rm_c_profesionalismo_y3", title: "Profesionalismo", desc: "Lidera con el ejemplo ético, asumiendo responsabilidad absoluta sobre sus pacientes y orientando a los residentes de menor año.", weight: 0.15 }
-        ]
-    }
-];
-
-const rubricSeminarioYear3 = [
-    {
-        category: "Seminario / Actividad Académica (Nivel Profundización)",
-        items: [
-            { id: "sem_dominio_y3", title: "Dominio del tema y evidencia", desc: "Dominio absoluto del tema, integrando conceptos moleculares, fisiopatológicos y clínicos avanzados con evidencia actual.", weight: 0.40 },
-            { id: "sem_analisis_y3", title: "Análisis crítico", desc: "Critica constructivamente la literatura existente, proponiendo nuevas perspectivas o áreas de incertidumbre clínica.", weight: 0.30 },
-            { id: "sem_pedagogia_y3", title: "Habilidades pedagógicas", desc: "Lidera la discusión académica estimulando el razonamiento crítico en el auditorio y respondiendo preguntas complejas con solvencia.", weight: 0.20 },
-            { id: "sem_tiempo_y3", title: "Manejo del tiempo y síntesis", desc: "Logra una síntesis perfecta, optimizando el tiempo para favorecer el debate de alto nivel.", weight: 0.10 }
-        ]
-    }
-];
-
 const rubricSeminario = [
     {
         category: "Contenido Científico (100%)",
@@ -262,10 +235,10 @@ const rubricMiniCex = [
     {
         category: "Mini-CEX (Escala de 1 a 9)",
         items: [
-            { id: "mc_anamnesis", title: "1. Anamnesis del paciente y/o acudiente", desc: "Facilita la narración del paciente y/o acudiente. Utiliza preguntas adecuadas de manera eficaz. Realiza un interrogatorio completo del motivo de consulta, enfermedad actual y antecedentes (patológicos, quirúrgicos, alérgicos, inmunizaciones, familiares). Responde adecuadamente a mensajes claves verbales y no verbales.", weight: 1/8 },
+            { id: "mc_anamnesis", title: "1. Anamnesis del paciente y/o acudiente", desc: "Facilita la narración del paciente y/o acudiente. Utiliza preguntas adecuadas de manera eficaz. Realiza un interrogatorio completo del motivo de consulta, enfermedad actual y antecedentes. Responde adecuadamente a mensajes claves verbales y no verbales.", weight: 1/8 },
             { id: "mc_examen", title: "2. Examen físico del paciente", desc: "Sigue una secuencia lógica y eficiente céfalo caudal. Exploración centrada en el problema clínico. Informa al paciente. Respeta la comodidad del paciente.", weight: 1/8 },
-            { id: "mc_juicio", title: "3. Juicio clínico, análisis y diagnósticos diferenciales", desc: "Realiza un diagnóstico apropiado y tiene en cuenta los diagnósticos diferenciales. Analiza de forma apropiada y crítica los diagnósticos.", weight: 1/8 },
-            { id: "mc_plan", title: "4. Plan de manejo (tratamiento y ayudas diagnósticas)", desc: "Establece un plan terapéutico acorde al diagnóstico. Propone ayudas diagnósticas pertinentes y completas, considerando los riesgos y beneficios.", weight: 1/8 },
+            { id: "mc_juicio", title: "3. Juicio clínico, análisis y diagnósticos", desc: "Realiza un diagnóstico apropiado y tiene en cuenta los diagnósticos diferenciales. Analiza de forma apropiada y crítica los diagnósticos.", weight: 1/8 },
+            { id: "mc_plan", title: "4. Plan de manejo", desc: "Establece un plan terapéutico acorde al diagnóstico. Propone ayudas diagnósticas pertinentes y completas, considerando los riesgos y beneficios.", weight: 1/8 },
             { id: "mc_comunicacion", title: "5. Habilidades comunicativas", desc: "Utiliza un lenguaje claro para el paciente. Es empático. Es honesto y pertinente. Explica al paciente el diagnóstico y el plan. Educa al paciente y a su familia.", weight: 1/8 },
             { id: "mc_organizacion", title: "6. Organización / eficiencia", desc: "Prioriza. Se ajusta al tiempo. Es concreto.", weight: 1/8 },
             { id: "mc_profesionalismo", title: "7. Profesionalismo", desc: "Muestra respeto por el paciente y su familia. Establece confianza y una buena relación. Guarda la confidencialidad de la historia clínica. Considera los aspectos legales relevantes.", weight: 1/8 },
@@ -430,8 +403,6 @@ const rubricStructure = [
    MICROCURRÍCULOS (contexto para Gemini IA)
    ======================================================== */
 const MICROCURRICULOS = {
-
-    "Hospitalización pediátrica III nivel profundización": "1. Conoce la fisiopatología, abordaje diagnóstico y terapéutico de patologías intrahospitalarias complejas.\n2. Establece un plan de manejo de líquidos y electrolitos evitando la sobrecarga.\n3. Maneja las diferentes formas de administración de oxígeno suplementario.\n4. Conoce indicaciones y complicaciones de transfusiones de hemoderivados.\n5. Establece planes de egreso hospitalario.\n6. Aplica estrategias de manejo en paciente con descompensación aguda (código sepsis, alerta temprana, etc.).",
     "Infectología pediátrica": "1. Reconoce la epidemiología, historia natural y fisiopatología de infecciones.\n2. Describe herramientas diagnósticas.\n3. Conoce principios de manejo farmacológico y uso de antibiograma.\n4. Conoce el uso racional de antibióticos y desescalonamiento.\n5. Conoce principios de resistencia antimicrobiana.\n6. Realiza educación sobre el uso responsable de antibióticos.",
 
     "Atención del parto y cuidados básicos del recién nacido": `ASIGNATURA: Atención del parto y cuidados básicos del recién nacido.
@@ -495,7 +466,54 @@ function showStep(stepId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function goBack(stepId) { showStep(stepId); }
+function selectYear(year) { if (year === 1) showStep('step-subject'); }
 
+function renderSubjects() {
+    const c = document.getElementById('subjects-container');
+    c.innerHTML = '';
+    subjectsYear1.forEach((s, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn secondary';
+        btn.style.textAlign = 'left';
+        btn.innerText = `${i + 1}. ${s}`;
+        btn.onclick = () => selectSubject(s);
+        c.appendChild(btn);
+    });
+}
+
+async function selectSubject(subject) {
+    selectedSubjectName = subject;
+    document.getElementById('form-subject-title').innerText = subject;
+    Object.keys(itemSelections).forEach(k => delete itemSelections[k]);
+    document.querySelectorAll('.score-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.score-input-row').forEach(r => { r.classList.add('hidden'); r.style.display = 'none'; });
+    
+    const evalTypeSelect = document.getElementById('evaluation-type');
+    evalTypeSelect.value = 'ronda'; // default
+    
+    const optTema = document.getElementById('opt-tema-central');
+    const optMinicex = document.getElementById('opt-minicex');
+    const optRonda = evalTypeSelect.querySelector('option[value="ronda"]');
+    const optSeminario = evalTypeSelect.querySelector('option[value="seminario"]');
+    
+    if (subject.includes("Urgencias") || subject.includes("Hospitalizaci")) {
+        optMinicex.classList.remove('hidden');
+        optTema.classList.add('hidden');
+        if(optRonda) optRonda.innerText = 'Ronda Médica (50%)';
+        if(optSeminario) optSeminario.innerText = 'Seminario (30%)';
+    } else {
+        optTema.classList.add('hidden');
+        optMinicex.classList.add('hidden');
+        if(optRonda) optRonda.innerText = 'Ronda Médica (60%)';
+        if(optSeminario) optSeminario.innerText = 'Seminario (40%)';
+    }
+
+    handleEvaluationTypeChange();
+
+    await loadResidents();
+    await loadTeachers(subject);
+    showStep('step-form');
+}
 
 function handleEvaluationTypeChange() {
     const evalType = document.getElementById('evaluation-type').value;
@@ -528,14 +546,11 @@ function getCurrentRubric() {
 function renderRubric() {
     const container = document.getElementById('rubric-table-container');
     container.innerHTML = '';
-    const activeRubric = getCurrentRubric(document.getElementById('evaluation-type').value);
     
-    // Initialize minicex slider defaults
-    if (activeRubric === rubricMiniCex) {
-        activeRubric.forEach(cat => cat.items.forEach(item => {
-            itemSelections[item.id] = { level: 'minicex', value: (5/9)*5, raw: 5 };
-        }));
-    }
+    // Reset selections on render
+    Object.keys(itemSelections).forEach(k => delete itemSelections[k]);
+
+    const activeRubric = getCurrentRubric();
 
     activeRubric.forEach(cat => {
         const catDiv = document.createElement('div');
@@ -548,9 +563,6 @@ function renderRubric() {
         container.appendChild(catDiv);
 
         cat.items.forEach(item => {
-            if (activeRubric === rubricMiniCex) {
-                itemSelections[item.id] = { level: 'minicex', value: (5/9)*5, raw: 5 };
-            }
             const block = document.createElement('div');
             block.className = 'rubric-item-block';
             block.innerHTML = `
@@ -561,15 +573,12 @@ function renderRubric() {
                     </div>
                 </div>
                 <div class="score-buttons" id="btns-${item.id}">
-                    ${activeRubric === rubricMiniCex ? `
-                        <div style="display:flex; align-items:center; gap: 15px; width: 100%; margin-top: 15px; padding: 0 10px;">
-                            <span style="font-weight:bold; font-size:1.2rem; color: #d32f2f;">1</span>
-                            <input type="range" min="1" max="9" value="5" class="minicex-slider" id="slider-${item.id}"
-                                oninput="document.getElementById('slider-val-${item.id}').innerText = this.value; selectScoreMiniCex('${item.id}', this.value)"
-                                style="flex-grow:1; cursor:pointer; height: 8px; border-radius: 4px; background: #ddd; outline: none;">
-                            <span style="font-weight:bold; font-size:1.2rem; color: #43a047;">9</span>
-                            <div style="background:var(--primary-color); color:white; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:1.3rem; margin-left:10px;" id="slider-val-${item.id}">5</div>
-                        </div>` 
+                    ${activeRubric === rubricMiniCex ? 
+                        [1,2,3,4,5,6,7,8,9].map(num => `
+                            <button type="button" class="score-btn btn-score-${num}" id="btn-${item.id}-${num}"
+                                onclick="selectScore('${item.id}','${num}',this)">
+                                <strong style="font-size:1.2rem;">${num}</strong>
+                            </button>`).join('')
                         :
                         SCORE_LEVELS.map(l => `
                         <button type="button" class="score-btn ${l.cls}" id="btn-${item.id}-${l.key}"
@@ -597,13 +606,6 @@ function renderRubric() {
             container.appendChild(block);
         });
     });
-}
-
-
-function selectScoreMiniCex(itemId, val) {
-    const score9 = parseFloat(val);
-    const score5 = (score9 / 9.0) * 5.0; // Convierte a escala de 5.0
-    itemSelections[itemId] = { level: 'minicex', value: score5, raw: score9 };
 }
 
 function selectScore(itemId, levelKey, btnEl) {
@@ -681,9 +683,6 @@ function generateFullRubricTable() {
     activeRubric.forEach(cat => {
         h += `<tr style="background:#f0f4f8;"><td colspan="5" style="padding:8px;font-weight:bold;text-align:center;color:#005A9C;">${cat.category}</td></tr>`;
         cat.items.forEach(item => {
-            if (activeRubric === rubricMiniCex) {
-                itemSelections[item.id] = { level: 'minicex', value: (5/9)*5, raw: 5 };
-            }
             h += `<tr><td style="padding:10px;border:1px solid #ddd;font-weight:500;">${item.title}<br><span style="font-size:0.72rem;color:#666;">${item.desc}</span></td>
                 <td style="padding:10px;border:1px solid #ddd;">${item.details.insuficiente}</td>
                 <td style="padding:10px;border:1px solid #ddd;">${item.details.aceptable}</td>
@@ -702,7 +701,7 @@ async function loadResidents() {
     const sel = document.getElementById('resident-select');
     sel.innerHTML = '<option value="">Seleccione residente...</option>';
     try {
-        const snapshot = await db.collection('residentes_hptu').where('año', '==', 1).get();
+        const snapshot = await db.collection('residentes').where('año', '==', 1).get();
         if (!snapshot.empty) {
             snapshot.forEach(doc => {
                 const data = doc.data();
@@ -719,7 +718,7 @@ async function loadResidents() {
         { nombre: 'Valeria Naranjo', año: 1 }
     ];
     for (const r of defaultResidents) {
-        const ref = await db.collection('residentes_hptu').add(r);
+        const ref = await db.collection('residentes').add(r);
         sel.add(new Option(r.nombre, ref.id));
     }
 }
@@ -752,11 +751,12 @@ async function calculateResults() {
     if (totalWeight > 0) applicable.forEach(i => { finalScore += itemSelections[i.id].value * (i.weight / totalWeight); });
     finalScore = finalScore.toFixed(2);
 
+    const resSel = document.getElementById('resident-select');
     const eticosNode = document.querySelector('input[name="eticos"]:checked');
     const eticosVal = eticosNode ? eticosNode.value : 'NO';
     const fortalezas = document.getElementById('fortalezas').value;
     const mejoras = document.getElementById('mejoras').value;
-    const residentName = document.getElementById('form-resident-name').innerText;
+    const residentName = resSel.options[resSel.selectedIndex].text;
     const teacherName = currentUser ? currentUser.nombre : 'Docente';
 
     let qualitative = finalScore >= 4.6 ? "Sobresaliente" : finalScore >= 3.6 ? "Bueno" : finalScore >= 3.0 ? "Aceptable" : "Insuficiente";
@@ -784,8 +784,8 @@ async function calculateResults() {
         const evalType = document.getElementById('evaluation-type').value;
         const actName = document.getElementById('seminar-name').value;
 
-        const evalRef = await db.collection('evaluaciones_hptu').add({
-            residente_id: selectedResidentId,
+        const evalRef = await db.collection('evaluaciones').add({
+            residente_id: resSel.value,
             residente_nombre: residentName,
             docente_id: currentUser ? currentUser.uid : 'anon',
             docente_nombre: teacherName,
@@ -841,7 +841,7 @@ async function loadReportSelects() {
     const resSel = document.getElementById('report-resident');
     resSel.innerHTML = '<option value="">Seleccione residente...</option>';
     try {
-        const snapshot = await db.collection('residentes_hptu').get();
+        const snapshot = await db.collection('residentes').get();
         snapshot.forEach(doc => resSel.add(new Option(doc.data().nombre, doc.id)));
     } catch (e) { console.warn(e); }
 
@@ -869,7 +869,7 @@ async function searchEvaluations() {
 
     showLoading('Buscando evaluaciones en Firebase...');
     try {
-        const snapshot = await db.collection('evaluaciones_hptu')
+        const snapshot = await db.collection('evaluaciones')
             .where('residente_id', '==', residentId)
             .where('rotacion', '==', rotation)
             .get();
@@ -942,112 +942,274 @@ async function generateFinalReport() {
     const dateFrom = document.getElementById('report-date-from').value;
     const dateTo = document.getElementById('report-date-to').value;
 
-    showLoading('Generando documento Word...');
+    showLoading('Consultando puntajes individuales...');
 
+    const evalIds = reportEvaluations.map(e => e.id);
+    let allItems = [];
     try {
-        let aiText = "El informe generado por IA va aquí...";
-        if (document.getElementById('report-generated-text')) {
-            aiText = document.getElementById('report-generated-text').innerText || aiText;
+        if (evalIds.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < evalIds.length; i += 10) chunks.push(evalIds.slice(i, i + 10));
+            for (const chunk of chunks) {
+                const snapshot = await db.collection('evaluacion_items').where('evaluacion_id', 'in', chunk).get();
+                snapshot.forEach(doc => allItems.push(doc.data()));
+            }
         }
+    } catch (e) { console.warn('No se pudieron obtener items:', e); }
 
-        const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, BorderStyle } = docx;
+    const evalRonda = reportEvaluations.filter(e => e.tipo_evaluacion === 'ronda' || !e.tipo_evaluacion);
+    const evalSeminario = reportEvaluations.filter(e => e.tipo_evaluacion === 'seminario');
+    const evalTemaCentral = reportEvaluations.filter(e => e.tipo_evaluacion === 'tema_central' || e.tipo_evaluacion === 'minicex');
 
-        let paragraphs = [];
-        paragraphs.push(new Paragraph({ children: [new TextRun({ text: 'HOSPITAL PABLO TOBÓN URIBE', bold: true, size: 28 })], alignment: 'center' }));
-        paragraphs.push(new Paragraph({ children: [new TextRun({ text: 'INFORME FINAL DE ROTACIÓN', bold: true, size: 24 })], alignment: 'center', spacing: { after: 400 } }));
+    let avgRonda = 0, avgSeminario = 0, avgTema = 0;
+    if(evalRonda.length > 0) avgRonda = evalRonda.reduce((s, e) => s + parseFloat(e.nota_final), 0) / evalRonda.length;
+    if(evalSeminario.length > 0) avgSeminario = evalSeminario.reduce((s, e) => s + parseFloat(e.nota_final), 0) / evalSeminario.length;
+    if(evalTemaCentral.length > 0) avgTema = evalTemaCentral.reduce((s, e) => s + parseFloat(e.nota_final), 0) / evalTemaCentral.length;
 
-        paragraphs.push(new Paragraph({ children: [new TextRun({ text: 'Nombre del Residente: ', bold: true }), new TextRun({ text: resName })], spacing: { after: 120 } }));
-        paragraphs.push(new Paragraph({ children: [new TextRun({ text: 'Rotación Evaluada: ', bold: true }), new TextRun({ text: rotation })], spacing: { after: 120 } }));
-        paragraphs.push(new Paragraph({ children: [new TextRun({ text: 'Período: ', bold: true }), new TextRun({ text: `${dateFrom} a ${dateTo}` })], spacing: { after: 300 } }));
+    let avgFinalNum = 0;
+    let distribucionNotas = "";
 
+    if (rotation === "Urgencias pediátricas III nivel de fundamentación" || rotation === "Hospitalización pediátrica tercer nivel fundamentación") {
+        if (evalTemaCentral.length > 0 && evalSeminario.length > 0 && evalRonda.length > 0) {
+            avgFinalNum = (avgRonda * 0.5) + (avgSeminario * 0.3) + (avgTema * 0.2);
+            distribucionNotas = "Ronda Médica 50%, Seminarios 30%, Tema Central/MiniCEX 20%";
+        } else if (evalTemaCentral.length === 0 && evalSeminario.length > 0 && evalRonda.length > 0) {
+            avgFinalNum = (avgRonda * 0.6) + (avgSeminario * 0.4);
+            distribucionNotas = "Ronda Médica 60%, Seminarios 40% (No se evaluó Tema Central/MiniCEX)";
+        } else if (evalTemaCentral.length > 0 && evalSeminario.length === 0 && evalRonda.length > 0) {
+            avgFinalNum = (avgRonda * 0.7) + (avgTema * 0.3);
+            distribucionNotas = "Ronda Médica 70%, Tema Central/MiniCEX 30% (No se evaluaron Seminarios)";
+        } else if (evalTemaCentral.length === 0 && evalSeminario.length === 0 && evalRonda.length > 0) {
+            avgFinalNum = avgRonda;
+            distribucionNotas = "Ronda Médica 100% (No se evaluaron Seminarios ni Tema Central/MiniCEX)";
+        } else {
+            const total = avgRonda + avgSeminario + avgTema;
+            const count = (avgRonda > 0 ? 1 : 0) + (avgSeminario > 0 ? 1 : 0) + (avgTema > 0 ? 1 : 0);
+            avgFinalNum = count > 0 ? total / count : 0;
+            distribucionNotas = "Promedio ajustado según evaluaciones disponibles.";
+        }
+    } else {
+        if (evalSeminario.length > 0 && evalRonda.length > 0) {
+            avgFinalNum = (avgRonda * 0.5) + (avgSeminario * 0.5);
+            distribucionNotas = "Ronda Médica 50%, Seminarios 50%";
+        } else if (evalSeminario.length === 0 && evalRonda.length > 0) {
+            avgFinalNum = avgRonda;
+            distribucionNotas = "Ronda Médica 100% (No se evaluaron Seminarios)";
+        } else if (evalSeminario.length > 0 && evalRonda.length === 0) {
+            avgFinalNum = avgSeminario;
+            distribucionNotas = "Seminarios 100% (No se evaluó Ronda Médica)";
+        } else {
+            avgFinalNum = 0;
+            distribucionNotas = "No hay evaluaciones válidas.";
+        }
+    }
+    
+    const avgFinal = avgFinalNum.toFixed(2);
+
+    const calcItemAverages = (evalList, rubricDef) => {
+        const itemAverages = {};
+        const listIds = evalList.map(e => e.id);
+        const relevantItems = allItems.filter(ai => listIds.includes(ai.evaluacion_id));
+        const rubricItems = rubricDef.flatMap(c => c.items.map(i => ({ ...i, category: c.category })));
         
-        let notaPonderadaTexto = "No se pudo calcular el ponderado por falta de datos.";
-        
-        let sumaRonda = 0, countRonda = 0;
-        let sumaSeminario = 0, countSeminario = 0;
-        let sumaMinicex = 0, countMinicex = 0;
-        
-        reportEvaluations.forEach(e => {
-            const val = parseFloat(e.nota_final);
-            if(isNaN(val)) return;
-            
-            if (e.tipo_evaluacion === 'ronda') { sumaRonda += val; countRonda++; }
-            else if (e.tipo_evaluacion === 'seminario') { sumaSeminario += val; countSeminario++; }
-            else if (e.tipo_evaluacion === 'minicex') { sumaMinicex += val; countMinicex++; }
+        rubricItems.forEach(ri => {
+            const scores = relevantItems.filter(ai => ai.item_id === ri.id).map(ai => parseFloat(ai.nota));
+            if (scores.length > 0) {
+                itemAverages[ri.id] = {
+                    title: ri.title, category: ri.category, weight: ri.weight,
+                    avg: (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1),
+                    count: scores.length, min: Math.min(...scores).toFixed(1), max: Math.max(...scores).toFixed(1)
+                };
+            }
         });
-        
-        const promRonda = countRonda > 0 ? sumaRonda / countRonda : 0;
-        const promSeminario = countSeminario > 0 ? sumaSeminario / countSeminario : 0;
-        const promMinicex = countMinicex > 0 ? sumaMinicex / countMinicex : 0;
-        
-        let final = 0;
-        let totalWeights = 0;
-        if (countRonda > 0) { final += promRonda * 0.5; totalWeights += 0.5; }
-        if (countSeminario > 0) { final += promSeminario * 0.3; totalWeights += 0.3; }
-        if (countMinicex > 0) { final += promMinicex * 0.2; totalWeights += 0.2; }
-        
-        if (totalWeights > 0) {
-            final = final / totalWeights;
-            notaPonderadaTexto = `Nota Definitiva Ponderada: ${final.toFixed(2)}`;
+        return itemAverages;
+    };
+
+    const itemAveragesRonda = calcItemAverages(evalRonda, rubricStructure);
+    const itemAveragesSeminario = calcItemAverages(evalSeminario, rubricSeminario);
+    const itemAveragesTema = calcItemAverages(evalTemaCentral, rubricTemaCentral);
+
+    const allFortalezas = reportEvaluations.filter(e => e.fortalezas).map(e => (e.docente_nombre || 'Docente') + ': ' + e.fortalezas);
+    const allMejoras = reportEvaluations.filter(e => e.por_mejorar).map(e => (e.docente_nombre || 'Docente') + ': ' + e.por_mejorar);
+    const teachers = [...new Set(reportEvaluations.map(e => e.docente_nombre || 'Docente'))];
+
+    showLoading('Generando análisis cualitativo (IA)...');
+    let aiAnalysis = '';
+    const apiKey = localStorage.getItem('geminiApiKey');
+    
+    if (apiKey) {
+        try {
+            aiAnalysis = await callGeminiForReport(apiKey, resName, rotation, avgFinal, itemAveragesRonda, allFortalezas, allMejoras, MICROCURRICULOS[rotation]);
+        } catch (e) {
+            console.warn('Error en Gemini, usando síntesis cualitativa local:', e);
+            aiAnalysis = generateDescriptiveAnalysis(resName, rotation, avgFinal, itemAveragesRonda, allFortalezas, allMejoras) + '\n\n(Nota: ' + e.message + ')';
         }
-        
-        paragraphs.push(new Paragraph({ children: [new TextRun({ text: notaPonderadaTexto, bold: true, size: 28 })], spacing: { before: 200, after: 300 } }));
-paragraphs.push(new Paragraph({ text: '1. Desglose de Evaluaciones Individuales', heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 120 } }));
+    } else {
+        aiAnalysis = generateDescriptiveAnalysis(resName, rotation, avgFinal, itemAveragesRonda, allFortalezas, allMejoras);
+    }
 
-        // Create table for individual evaluations
-        const rows = [];
-        // Header
-        rows.push(new TableRow({
-            children: [
-                new TableCell({ children: [new Paragraph({ text: "Fecha", bold: true })] }),
-                new TableCell({ children: [new Paragraph({ text: "Docente", bold: true })] }),
-                new TableCell({ children: [new Paragraph({ text: "Tipo Actividad", bold: true })] }),
-                new TableCell({ children: [new Paragraph({ text: "Nota", bold: true })] })
-            ],
-            tableHeader: true
-        }));
+    showLoading('Construyendo documento Word...');
+    try {
+        await buildWordReport(resName, rotation, dateFrom, dateTo, teachers, reportEvaluations, itemAveragesRonda, itemAveragesSeminario, itemAveragesTema, avgRonda, avgSeminario, avgTema, avgFinal, distribucionNotas, aiAnalysis, allFortalezas, allMejoras);
+    } catch (e) {
+        console.error('Error generando Word:', e);
+        alert('Error al generar el documento: ' + e.message);
+    }
 
-        reportEvaluations.forEach(ev => {
-            const fecha = ev.created_at && ev.created_at.toDate ? ev.created_at.toDate().toLocaleDateString('es-CO') : '-';
-            let tipo = ev.tipo_evaluacion || 'ronda';
-            if (ev.nombre_actividad) tipo += ` (${ev.nombre_actividad})`;
-            
+    hideLoading();
+}
+
+async function callGeminiForReport(apiKey, resName, rotation, avgFinal, itemAverages, fort, mej, microcurriculo) {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey;
+    
+    const prompt = `Actúa como el Coordinador del Programa de Especialización en Pediatría. Redacta la SÍNTESIS CUALITATIVA DEL DESEMPEÑO para el informe final de rotación del residente.
+Residente: ${resName}
+Rotación: ${rotation}
+Nota Promedio Final: ${avgFinal} / 5.0
+Microcurrículo de la rotación (Competencias esperadas): ${microcurriculo || 'No especificado.'}
+Resumen de notas por ítem: ${Object.values(itemAverages).map(i => '- ' + i.title + ': ' + i.avg).join('\n')}
+Comentarios de Fortalezas (debatidos por los docentes): ${fort.join(' | ')}
+Comentarios por Mejorar (debatidos por los docentes): ${mej.join(' | ')}
+Instrucciones estrictas:
+1. Redacta en tercera persona de forma muy formal y profesional.
+2. NO menciones los nombres de los docentes evaluadores bajo ninguna circunstancia.
+3. El informe debe constar de 2 a 3 párrafos bien estructurados.
+4. Conecta el desempeño real del residente (notas y comentarios) explícitamente con las competencias esperadas en el Microcurrículo.
+5. Si el promedio es menor a 3.6, enfatiza en un tono constructivo pero firme las áreas críticas a mejorar según el microcurrículo.
+6. NO incluyas saludos ni despedidas, ve directo al texto del informe.`;
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.3 }
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error((err.error && err.error.message) || 'Error en la API de Gemini');
+    }
+
+    const data = await response.json();
+    if (data.candidates && data.candidates.length > 0) {
+        return data.candidates[0].content.parts[0].text.trim();
+    }
+    throw new Error('Respuesta vacía de Gemini');
+}
+
+function generateDescriptiveAnalysis(resName, rotation, avg, items, fort, mej) {
+    let q = avg >= 4.6 ? 'sobresaliente' : avg >= 3.6 ? 'bueno' : avg >= 3.0 ? 'aceptable' : 'insuficiente';
+    const cleanFort = fort.map(f => f.replace(/^[^:]+:\s*/, ''));
+    const cleanMej = mej.map(m => m.replace(/^[^:]+:\s*/, ''));
+
+    return `Durante el período evaluado en la rotación de ${rotation}, el/la residente ${resName} ha demostrado un desempeño general calificado como ${q.toUpperCase()}, obteniendo una nota promedio final de ${avg}/5.0 a partir de las evaluaciones consolidadas en este período.
+
+` +
+        (cleanFort.length > 0 ? `Entre las fortalezas destacadas por los docentes evaluadores se encuentran: ${cleanFort.join('. ')}.
+
+` : '') +
+        (cleanMej.length > 0 ? `Las áreas identificadas como oportunidades de mejora y recomendaciones incluyen: ${cleanMej.join('. ')}.
+
+` : '') +
+        `Se sugiere continuar con el fortalecimiento de las habilidades clínicas y académicas delineadas en el microcurrículo, fomentando un aprendizaje continuo en su especialización médica.`;
+}
+
+async function buildWordReport(resName, rotation, dateFrom, dateTo, teachers, evaluations, itemAveragesRonda, itemAveragesSeminario, itemAveragesTema, avgRonda, avgSeminario, avgTema, avgFinal, distribucionNotas, aiAnalysis, fortalezas, mejoras) {
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, WidthType, BorderStyle, ShadingType } = docx;
+
+    const qualitative = avgFinal >= 4.6 ? 'SOBRESALIENTE' : avgFinal >= 3.6 ? 'BUENO' : avgFinal >= 3.0 ? 'ACEPTABLE' : 'INSUFICIENTE';
+
+    const createTableRows = (title, avgValue, itemAverages) => {
+        const rows = [
+            new TableRow({
+                children: [
+                    new TableCell({
+                        columnSpan: 6,
+                        shading: { type: ShadingType.CLEAR, fill: "F0F4F8" },
+                        children: [new Paragraph({ children: [new TextRun({ text: title + ' - Promedio: ' + (avgValue>0 ? avgValue.toFixed(2) : 'N/A'), bold: true, size: 20 })], alignment: AlignmentType.CENTER })]
+                    })
+                ]
+            }),
+            new TableRow({
+                tableHeader: true,
+                children: ['Competencia', 'Peso', 'Promedio', 'Mín', 'Máx', 'Evaluaciones'].map(text =>
+                    new TableCell({
+                        shading: { type: ShadingType.CLEAR, fill: "005A9C" },
+                        children: [new Paragraph({ children: [new TextRun({ text, color: 'FFFFFF', bold: true })], alignment: AlignmentType.CENTER })],
+                        margins: { top: 100, bottom: 100, left: 100, right: 100 }
+                    })
+                )
+            })
+        ];
+
+        Object.values(itemAverages).forEach(item => {
             rows.push(new TableRow({
                 children: [
-                    new TableCell({ children: [new Paragraph({ text: fecha })] }),
-                    new TableCell({ children: [new Paragraph({ text: ev.docente_nombre || 'Docente' })] }),
-                    new TableCell({ children: [new Paragraph({ text: tipo })] }),
-                    new TableCell({ children: [new Paragraph({ text: ev.nota_final || '-' })] })
+                    new TableCell({ children: [new Paragraph({ text: item.title, alignment: AlignmentType.LEFT })], margins: { top: 80, bottom: 80, left: 100, right: 100 } }),
+                    new TableCell({ children: [new Paragraph({ text: (item.weight * 100) + '%', alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.avg, bold: true })], alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: item.min, alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ text: item.max }),
+                    new TableCell({ children: [new Paragraph({ text: item.count.toString(), alignment: AlignmentType.CENTER })] })
                 ]
             }));
         });
+        return rows;
+    };
 
-        paragraphs.push(new Table({
-            rows: rows,
-            width: { size: 100, type: WidthType.PERCENTAGE },
-        }));
+    const allTableRows = [];
+    if (Object.keys(itemAveragesRonda).length > 0) allTableRows.push(...createTableRows('Ronda Médica', avgRonda, itemAveragesRonda));
+    if (Object.keys(itemAveragesSeminario).length > 0) allTableRows.push(...createTableRows('Seminarios', avgSeminario, itemAveragesSeminario));
+    if (Object.keys(itemAveragesTema).length > 0) allTableRows.push(...createTableRows('Tema Central / MiniCEX', avgTema, itemAveragesTema));
 
-        paragraphs.push(new Paragraph({ text: '2. Informe Consolidado Cualitativo', heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }));
+    const paragraphs = [
+        new Paragraph({ children: [new TextRun({ text: 'INFORME FINAL DE ROTACIÓN', bold: true, size: 32, color: '005A9C' })], alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
+        new Paragraph({ children: [new TextRun({ text: 'Residente: ', bold: true, size: 22 }), new TextRun({ text: resName, size: 22 })] }),
+        new Paragraph({ children: [new TextRun({ text: 'Rotación: ', bold: true, size: 22 }), new TextRun({ text: rotation, size: 22 })] }),
+        new Paragraph({ children: [new TextRun({ text: 'Período evaluado: ', bold: true, size: 22 }), new TextRun({ text: dateFrom + ' a ' + dateTo, size: 22 })] }),
+        new Paragraph({ children: [new TextRun({ text: 'Total de evaluaciones: ', bold: true, size: 22 }), new TextRun({ text: evaluations.length.toString(), size: 22 })] }),
+        new Paragraph({ spacing: { before: 60, after: 60 }, children: [new TextRun({ text: 'Distribución de Notas: ', bold: true, size: 22 }), new TextRun({ text: distribucionNotas, size: 22, italics: true })] }),
+        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: 'Docentes evaluadores: ', bold: true, size: 22 }), new TextRun({ text: teachers.join(', '), size: 22 })] }),
 
-        const blocks = aiText.split('\n').filter(b => b.trim().length > 0);
-        blocks.forEach(m => paragraphs.push(new Paragraph({ text: ' ' + m, size: 22, spacing: { after: 120 } })));
+        new Paragraph({ spacing: { before: 300, after: 200 }, children: [new TextRun({ text: 'CALIFICACIÓN PROMEDIO POR COMPETENCIAS', bold: true, size: 26, color: '005A9C' })] })
+    ];
 
-        const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
-
-        const blob = await Packer.toBlob(doc);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'Informe_Final_' + resName.replace(/ /g, '_') + '_' + rotation.substring(0, 20).replace(/ /g, '_') + '.docx';
-        document.body.appendChild(a);
-        a.click();
-        
-        hideLoading();
-    } catch (e) {
-        hideLoading();
-        console.error(e);
-        alert('Error generando Word: ' + e.message);
+    if (allTableRows.length > 0) {
+        paragraphs.push(new Table({ rows: allTableRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
     }
+
+    paragraphs.push(
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 100 }, children: [
+            new TextRun({ text: 'NOTA DEFINITIVA: ', bold: true, size: 28 }),
+            new TextRun({ text: avgFinal + ' / 5.0', bold: true, size: 36, color: avgFinal < 3.0 ? 'E74C3C' : avgFinal < 3.6 ? 'F39C12' : avgFinal < 4.6 ? '2980B9' : '27AE60' })
+        ]}),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: 'Desempeño: ' + qualitative, bold: true, size: 24, color: '666666' })] }),
+
+        new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: 'SÍNTESIS CUALITATIVA DEL DESEMPEÑO', bold: true, size: 24, color: '005A9C' })] }),
+        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: aiAnalysis, size: 22 })] }),
+
+        new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: 'OBSERVACIONES - FORTALEZAS', bold: true, size: 24, color: '27AE60' })] })
+    );
+
+    fortalezas.forEach(f => paragraphs.push(new Paragraph({ text: '• ' + f, size: 22, spacing: { after: 60 } })));
+
+    paragraphs.push(new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: 'OBSERVACIONES - POR MEJORAR', bold: true, size: 24, color: 'E74C3C' })] }));
+
+    mejoras.forEach(m => paragraphs.push(new Paragraph({ text: '• ' + m, size: 22, spacing: { after: 60 } })));
+
+    const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
+
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Informe_Final_' + resName.replace(/ /g, '_') + '_' + rotation.substring(0, 20).replace(/ /g, '_') + '.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function showLoading(text) {
@@ -1055,188 +1217,3 @@ function showLoading(text) {
     document.getElementById('loading-overlay').classList.remove('hidden');
 }
 function hideLoading() { document.getElementById('loading-overlay').classList.add('hidden'); }
-
-
-
-let selectedResidentId = null;
-
-async function loadResidentsGrid() {
-    const grid = document.getElementById('residents-grid');
-    grid.innerHTML = '<p>Cargando residentes...</p>';
-    try {
-        const snapshot = await db.collection('residentes_hptu').where('activo', '==', true).get();
-        grid.innerHTML = '';
-        if (snapshot.empty) {
-            grid.innerHTML = '<p>No hay residentes activos.</p>';
-            return;
-        }
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const photo = data.fotoUrl || 'https://via.placeholder.com/150?text=Sin+Foto';
-            const card = document.createElement('div');
-            card.className = 'resident-card';
-            card.style.cssText = 'background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; cursor: pointer; transition: transform 0.2s;';
-            card.innerHTML = `
-                <img src="${photo}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 10px;">
-                <h4 style="margin: 0; color: #333; font-size: 0.95rem;">${data.nombre}</h4><p style="margin: 5px 0 0; font-size: 0.8rem; color: #666;">Año ${data.year}</p>
-            `;
-            card.onmouseover = () => card.style.transform = 'translateY(-3px)';
-            card.onmouseout = () => card.style.transform = 'translateY(0)';
-            card.onclick = () => selectResidentForEval(doc.id, data.nombre, photo, data.year);
-            grid.appendChild(card);
-        });
-    } catch (e) {
-        console.error(e);
-        grid.innerHTML = '<p>Error cargando residentes.</p>';
-    }
-}
-
-
-
-let selectedResidentYear = 1;
-
-async function selectResidentForEval(resId, resName, resPhoto, resYear) {
-    selectedResidentId = resId;
-    selectedResidentYear = resYear || 1;
-    
-    const photoEl = document.getElementById('form-resident-photo');
-    if (resPhoto) {
-        photoEl.src = resPhoto;
-        photoEl.style.display = 'block';
-    } else {
-        photoEl.style.display = 'none';
-    }
-    document.getElementById('form-resident-name').innerText = resName;
-    
-    // Set explicit subject based on year
-    if (selectedResidentYear === 3) {
-        selectedSubjectName = "Hospitalización pediátrica III nivel profundización";
-    } else {
-        selectedSubjectName = "Hospitalización pediátrica III nivel fundamentación";
-    }
-    
-    // Setup dropdown options (Todos con 50/30/20)
-    const evalTypeSelect = document.getElementById('evaluation-type');
-    evalTypeSelect.value = 'ronda';
-    
-    const optTema = document.getElementById('opt-tema-central');
-    const optMinicex = document.getElementById('opt-minicex');
-    const optRevistas = document.getElementById('opt-club-revistas');
-    const optEdu = document.getElementById('opt-actividad-educativa');
-    const optRonda = evalTypeSelect.querySelector('option[value="ronda"]');
-    const optSeminario = evalTypeSelect.querySelector('option[value="seminario"]');
-    
-    optMinicex.classList.remove('hidden');
-    if(optTema) optTema.classList.add('hidden');
-    if(optRevistas) optRevistas.classList.add('hidden');
-    if(optEdu) optEdu.classList.add('hidden');
-    
-    if(optRonda) optRonda.innerText = 'Ronda Médica (50%)';
-    if(optSeminario) optSeminario.innerText = 'Seminario (30%)';
-    
-    Object.keys(itemSelections).forEach(k => delete itemSelections[k]);
-    document.querySelectorAll('.score-btn').forEach(b => b.classList.remove('selected'));
-    document.querySelectorAll('.score-input-row').forEach(r => { r.classList.add('hidden'); r.style.display = 'none'; });
-    
-    handleEvaluationTypeChange();
-    
-    document.getElementById('fortalezas').value = '';
-    document.getElementById('mejoras').value = '';
-    
-    showStep('step-form');
-    await loadTeachers(selectedSubjectName);
-}
-
-
-
-function openAdminResidents() {
-    showStep('step-admin-residents');
-    loadAdminResidentsList();
-}
-
-async function loadAdminResidentsList() {
-    const list = document.getElementById('admin-residents-list');
-    list.innerHTML = '<p>Cargando...</p>';
-    try {
-        const snapshot = await db.collection('residentes_hptu').orderBy('nombre').get();
-        list.innerHTML = '';
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const isActive = data.activo !== false; // por defecto true
-            const item = document.createElement('div');
-            item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:10px; border-radius:8px; border-left:4px solid ' + (isActive ? 'var(--primary-color)' : '#999');
-            
-            const btnText = isActive ? 'Retirar' : 'Activar';
-            const btnColor = isActive ? 'var(--danger)' : 'var(--primary-color)';
-            
-            item.innerHTML = `
-                <div style="display:flex; align-items:center; gap:15px;">
-                    <img src="${data.fotoUrl || 'https://via.placeholder.com/50?text=Foto'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-                    <span style="font-weight:600; color:${isActive ? '#333' : '#999'}">${data.nombre}</span>
-                </div>
-                <button class="option-btn" style="width:auto; padding:5px 15px; font-size:0.85rem; background:${btnColor}" onclick="toggleResidentStatus('${doc.id}', ${isActive})">${btnText}</button>
-            `;
-            list.appendChild(item);
-        });
-    } catch (e) {
-        console.error(e);
-        list.innerHTML = `<p style="color:red">Error cargando lista: ${e.message}</p>`;
-        alert("Error Firestore: " + e.message);
-    }
-}
-
-async function handleAddResident() {
-    const nameInput = document.getElementById('new-res-name').value.trim();
-    const photoInput = document.getElementById('new-res-photo');
-    const yearInput = parseInt(document.getElementById('new-res-year').value);
-    const btn = document.getElementById('btn-add-res');
-    
-    if (!nameInput) return;
-    
-    btn.disabled = true;
-    btn.innerText = 'Guardando...';
-    
-    try {
-        let photoUrl = null;
-        if (photoInput.files.length > 0) {
-            const file = photoInput.files[0];
-            const ref = storage.ref().child(`residents-photos/${Date.now()}_${file.name}`);
-            
-            // Add a timeout to catch hanging storage uploads (e.g. uninitialized bucket)
-            const uploadTask = ref.put(file);
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Storage no responde. ¿Activaste Firebase Storage en la consola?")), 10000));
-            
-            await Promise.race([uploadTask, timeoutPromise]);
-            photoUrl = await ref.getDownloadURL();
-        }
-        
-        await db.collection('residentes_hptu').add({
-            nombre: nameInput,
-            year: yearInput,
-            fotoUrl: photoUrl,
-            activo: true,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
-        document.getElementById('add-resident-form').reset();
-        await loadAdminResidentsList();
-        alert('Residente guardado exitosamente.');
-    } catch (e) {
-        console.error(e);
-        alert('Error al guardar residente: ' + e.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = 'Guardar Residente';
-    }
-}
-
-async function toggleResidentStatus(id, currentStatus) {
-    if (!confirm(`¿Está seguro de querer ${currentStatus ? 'retirar' : 'activar'} a este residente?`)) return;
-    try {
-        await db.collection('residentes_hptu').doc(id).update({ activo: !currentStatus });
-        loadAdminResidentsList();
-    } catch (e) {
-        console.error(e);
-        alert('Error cambiando estado.');
-    }
-}
